@@ -105,58 +105,216 @@
          За каждое соединение игровые очки увеличиваются на номинал получившейся плитки.
          Игра заканчивается поражением, если после очередного хода невозможно совершить действие.
          */
-        $(document).ready(function () {
-            var $playfield = $('#playfield');
-            var playFieldSize = 4;
-            var mousedown = false;
+        
+        class State {
+          constructor(playFieldSize) {
+            this.playFieldSize = playFieldSize;
+            this.gameOver = false;
+            this.tiles = [];
+            for (var i = 0; i < this.playFieldSize; i++) {
+              this.tiles[i] = new Array(this.playFieldSize);
+            }
+            this.buildFreeCells();
+            this.addNewTile();
+          }
+          
+          buildFreeCells() {
+            this.freeCells = [];
+            for (var i = 0; i < this.playFieldSize; i++) {
+              for (var j = 0; j < this.playFieldSize; j++) {
+                if (this.tiles[i][j] === undefined) {
+                  this.freeCells.push({
+                    row: i,
+                    column: j,
+                  });
+                }
+              }
+            }
+          }
 
-            var freeCells = [];
-            for (var i = 0; i < playFieldSize * playFieldSize; i++) {
-              freeCells[i] = i + 1;
+          refreshTilesNextPosition() {
+            for (var i = 0; i < this.playFieldSize; i++) {
+              for (var j = 0; j < this.playFieldSize; j++) {
+                if (this.tiles[i][j] !== undefined) {
+                  this.tiles[i][j].row = i;
+                  this.tiles[i][j].column = j;
+                }
+              }
+            }
+          }
+
+          addNewTile() {
+            const randomIndex = Math.floor(Math.random() * this.freeCells.length);
+            const cell = this.freeCells[randomIndex];
+            this.freeCells.splice(randomIndex, 1);
+            cell.value = Math.random() > 0.9 ? 4 : 2;
+            cell.id = Date.now();
+            this.tiles[cell.row][cell.column] = cell;
+            this.newTile = cell;
+          }
+          
+          next(direction) {
+
+            function getTableRow(table, n) {
+              return table[n].slice();
             }
 
-            function getRandomCellNumber(cells) {
-              var randomIndex = Math.floor(Math.random() * cells.length);
-              return cells[randomIndex];
-            }
-            
-            function getPositionByNumber(cellNumber) {
-              var row = Math.ceil(cellNumber / playFieldSize);
-              var column = (cellNumber - 1) % playFieldSize + 1;
-              var top = (row - 1) * 100;
-              var left = (column - 1) * 100;
-              return 'top: ' + top + 'px; left: ' + left + 'px;';
+            function getTableColumn(table, n) {
+              const column = [];
+              for (var i = 0; i < table.length; i++) {
+                  column.push(table[i][n]);
+              }
+              return column;
             }
 
-            function getNewValue() {
-              return 't' + (Math.random() > 0.9 ? 4 : 2);
-            }
-
-            $('<div/>', {
-                class: 'thing ' + getNewValue(),
-                style: getPositionByNumber(getRandomCellNumber(freeCells)),
-            }).appendTo($playfield);
-
-            function getDirection(event) {
-              var shiftX = 0, shiftY = 0, direction;
-              shiftX = event.pageX - getDirection.mousedown.pageX;
-              shiftY = event.pageY - getDirection.mousedown.pageY;
-              if (Math.abs(shiftX) > Math.abs(shiftY)) {
-                return shiftX > 0 ? 'right' : 'left';
-              } else {
-                return shiftY > 0 ? 'bottom' : 'top';
+            function attract(arr) {
+              let vacantPos;
+              for (let i = 0; i < arr.length; i++) {
+                if (arr[i] === undefined) {
+                  vacantPos = i;
+                  break;
+                }
+              }
+              if (vacantPos === undefined) {
+                return;
+              }
+              for (let i = vacantPos + 1; i < arr.length; i++) {
+                if (arr[i] !== undefined) {
+                  arr[vacantPos] = arr[i];
+                  delete arr[i];
+                  vacantPos++;
+                }
               }
             }
 
-            $playfield.unbind('mousedown').mousedown(function (event) {
-                mousedown = true;
-                getDirection.mousedown = event;
-            });
-            $playfield.unbind('mouseup').mouseup(function (event) {
-                mousedown = false;
-                let direction = getDirection(event);
-                console.log('UP: direction =', direction, getNewValue());
-            });
+            function getRotatedTable(table, direction) {
+              const tableCopy = [];
+              if (direction === 'left' || direction === 'right') {
+                for (var i = 0; i < table.length; i++) {
+                  tableCopy[i] = getTableRow(table, i);
+                  if (direction === 'right') {
+                    tableCopy[i].reverse();
+                  }
+                }
+              } else {
+                for (var i = 0; i < table.length; i++) {
+                  tableCopy[i] = getTableColumn(table, i);
+                  if (direction === 'bottom') {
+                    tableCopy[i].reverse();
+                  }
+                }
+              }
+              return tableCopy;
+            }
+
+            function getUnrotatedTable(table, direction) {
+              const tableCopy = [];
+              if (direction === 'bottom' || direction === 'right') {
+                for (var i = 0; i < table.length; i++) {
+                  table[i].reverse();
+                }
+              }
+              if (direction === 'left' || direction === 'right') {
+                for (var i = 0; i < table.length; i++) {
+                  tableCopy[i] = getTableRow(table, i);
+                }
+              } else {
+                for (var i = 0; i < table.length; i++) {
+                  tableCopy[i] = getTableColumn(table, i);
+                }
+              }
+              return tableCopy;
+            }
+
+            const tilesCopy = getRotatedTable(this.tiles, direction);
+            for (var i = 0; i < this.playFieldSize; i++) {
+              attract(tilesCopy[i]);
+            }
+            this.tiles = getUnrotatedTable(tilesCopy, direction);
+
+            this.refreshTilesNextPosition();
+            this.buildFreeCells();
+            if (this.freeCells.length) {
+              this.addNewTile();
+            } else {
+              this.gameOver = true;
+            }
+            
+          }
+
+        }
+
+        
+        $(document).ready(function () {
+          var $playfield = $('#playfield');
+          var mousedown = false;
+
+          function getTileStyleClass({ value }) {
+            return `thing t${value}`;
+          }
+          function getCellStylePosition({ row, column }) {
+            var top = row * 100;
+            var left = column * 100;
+            return `top: ${top}px; left: ${left}px;`;
+          }
+
+          function renderNewTile(tile) {
+            if (tile !== undefined) {
+              $('<div/>', {
+                id: tile.id,
+                class: getTileStyleClass(tile),
+                style: getCellStylePosition(tile),
+              }).appendTo($playfield);
+            }
+          }
+          
+          function renderTileTransition(state) {
+            for (var i = 0; i < state.playFieldSize; i++) {
+              for (var j = 0; j < state.playFieldSize; j++) {
+                const tile = state.tiles[i][j];
+                if (tile !== undefined) {
+                  $(`#${tile.id}`).attr({
+                    class: getTileStyleClass(tile),
+                    style: getCellStylePosition(tile),
+                  });
+
+                }
+              }
+            }
+          }
+
+
+          function getDirection(event) {
+            var shiftX = 0, shiftY = 0, direction;
+            shiftX = event.pageX - getDirection.mousedown.pageX;
+            shiftY = event.pageY - getDirection.mousedown.pageY;
+            if (Math.abs(shiftX) > Math.abs(shiftY)) {
+              return shiftX > 0 ? 'right' : 'left';
+            } else {
+              return shiftY > 0 ? 'bottom' : 'top';
+            }
+          }
+
+          $playfield.unbind('mousedown').mousedown(function (event) {
+              mousedown = true;
+              getDirection.mousedown = event;
+          });
+          $playfield.unbind('mouseup').mouseup(function (event) {
+              mousedown = false;
+              let direction = getDirection(event);
+              console.log('UP: direction =', direction);
+              state.next(direction);
+              if (state.gameOver) {
+                return;
+              }
+              renderTileTransition(state);
+              renderNewTile(state.newTile);
+              console.log(state);
+          });
+
+          const state = new State(4);
+          renderNewTile(state.newTile);
+          console.log(state);
         });
 
     </script>
