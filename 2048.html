@@ -19,6 +19,15 @@
             -ms-user-drag: none;
             user-drag: none;
         }
+        #modal__background{
+          position: absolute;
+          top: 100px;
+            left: 100px;
+            width: 400px;
+            height: 400px;
+          background-color: rgb(228, 204, 236);
+          opacity: 0.5;
+        }
         #playfield{
             position: absolute;
             top: 100px;
@@ -32,7 +41,6 @@
             width: 100px;
             height: 100px;
             background: gray;
-            outline: 1px solid black;
         }
         .thing{
             position: absolute;
@@ -105,7 +113,151 @@
          За каждое соединение игровые очки увеличиваются на номинал получившейся плитки.
          Игра заканчивается поражением, если после очередного хода невозможно совершить действие.
          */
-        
+
+
+        /*
+        Перемещение плиток к одной из сторон, указываемой параметром direction.
+        Основной статический метод execute с входными параметрами:
+          table - исходный двумерный массив плиток,
+          direction - сторона поля, к которой будут перемещены плитки,
+        возвращает перемещенный двумерный массив.
+        */
+        class Engine {
+
+          constructor(table, direction) {
+            this.table = table;
+            this.direction = direction;
+          }
+
+          static execute(table, direction) {
+            Engine.emptyMove = true;
+            const engine = new Engine(table, direction);
+            Engine.gameOver = engine._isGameOver();
+            if (!Engine.gameOver) {
+              engine
+                .getRotatedTable()
+                .attractTable()
+                .getUnrotatedTable();
+            }
+            return engine.table;
+          }
+
+          _isGameOver() {
+            const isThereMove = getSubset => {
+              for (let i = 0; i < this.table.length; i++) {
+                const arr = getSubset(this.table, i);
+                for (let j = 1; j < arr.length; j++) {
+                  if (!arr[j - 1] || !arr[j] || arr[j - 1].value == arr[j].value) {
+                    return true;
+                  }
+                }
+              }
+              return false;
+            }
+            return !isThereMove(this._getTableRow) && !isThereMove(this._getTableColumn);
+          }
+
+          _getTableRow(table, n) {
+            return table[n].slice();
+          }
+
+          _getTableColumn(table, n) {
+            const column = [];
+            for (var i = 0; i < table.length; i++) {
+                column.push(table[i][n]);
+            }
+            return column;
+          }
+
+          _attractRow(arr) {
+            let vacantPos;
+            for (let i = 0; i < arr.length; i++) {
+              if (arr[i] === undefined) {
+                vacantPos = i;
+                break;
+              }
+            }
+            if (vacantPos === undefined) {
+              return;
+            }
+            for (let i = vacantPos + 1; i < arr.length; i++) {
+              if (arr[i] !== undefined) {
+                Engine.emptyMove = false;
+                arr[vacantPos] = arr[i];
+                delete arr[i];
+                vacantPos++;
+              }
+            }
+          }
+
+          _mergeDouble(arr) {
+            const size = arr.length;
+            for (let i = 1; i < size && arr[i] !== undefined; i++) {
+              if (arr[i].value == arr[i - 1].value && !arr[i - 1].removedTileId) {
+                Engine.emptyMove = false;
+                arr[i].removedTileId = arr[i - 1].id;
+                arr.splice(i - 1, 1);
+                arr.length = size;
+                i--;
+                arr[i].value *= 2;
+              }
+            }
+          }
+
+          attractTable() {
+            for (var i = 0; i < this.table.length; i++) {
+              this._attractRow(this.table[i]);
+              this._mergeDouble(this.table[i]);
+            }
+            return this;
+          }
+
+          getRotatedTable() {
+            const tableCopy = [];
+            if (this.direction === 'left' || this.direction === 'right') {
+              for (var i = 0; i < this.table.length; i++) {
+                tableCopy[i] = this._getTableRow(this.table, i);
+                if (this.direction === 'right') {
+                  tableCopy[i].reverse();
+                }
+              }
+            } else {
+              for (var i = 0; i < this.table.length; i++) {
+                tableCopy[i] = this._getTableColumn(this.table, i);
+                if (this.direction === 'bottom') {
+                  tableCopy[i].reverse();
+                }
+              }
+            }
+            this.table = tableCopy;
+            return this;
+          }
+
+          getUnrotatedTable() {
+            const tableCopy = [];
+            if (this.direction === 'bottom' || this.direction === 'right') {
+              for (var i = 0; i < this.table.length; i++) {
+                this.table[i].reverse();
+              }
+            }
+            if (this.direction === 'left' || this.direction === 'right') {
+              for (var i = 0; i < this.table.length; i++) {
+                tableCopy[i] = this._getTableRow(this.table, i);
+              }
+            } else {
+              for (var i = 0; i < this.table.length; i++) {
+                tableCopy[i] = this._getTableColumn(this.table, i);
+              }
+            }
+            this.table = tableCopy;
+            return this;
+          }
+
+        }
+
+        /*
+        Класс управления игрой.
+        */
         class State {
           constructor(playFieldSize) {
             this.playFieldSize = playFieldSize;
@@ -154,92 +306,18 @@
           }
           
           next(direction) {
-
-            function getTableRow(table, n) {
-              return table[n].slice();
-            }
-
-            function getTableColumn(table, n) {
-              const column = [];
-              for (var i = 0; i < table.length; i++) {
-                  column.push(table[i][n]);
-              }
-              return column;
-            }
-
-            function attract(arr) {
-              let vacantPos;
-              for (let i = 0; i < arr.length; i++) {
-                if (arr[i] === undefined) {
-                  vacantPos = i;
-                  break;
-                }
-              }
-              if (vacantPos === undefined) {
-                return;
-              }
-              for (let i = vacantPos + 1; i < arr.length; i++) {
-                if (arr[i] !== undefined) {
-                  arr[vacantPos] = arr[i];
-                  delete arr[i];
-                  vacantPos++;
-                }
-              }
-            }
-
-            function getRotatedTable(table, direction) {
-              const tableCopy = [];
-              if (direction === 'left' || direction === 'right') {
-                for (var i = 0; i < table.length; i++) {
-                  tableCopy[i] = getTableRow(table, i);
-                  if (direction === 'right') {
-                    tableCopy[i].reverse();
-                  }
-                }
-              } else {
-                for (var i = 0; i < table.length; i++) {
-                  tableCopy[i] = getTableColumn(table, i);
-                  if (direction === 'bottom') {
-                    tableCopy[i].reverse();
-                  }
-                }
-              }
-              return tableCopy;
-            }
-
-            function getUnrotatedTable(table, direction) {
-              const tableCopy = [];
-              if (direction === 'bottom' || direction === 'right') {
-                for (var i = 0; i < table.length; i++) {
-                  table[i].reverse();
-                }
-              }
-              if (direction === 'left' || direction === 'right') {
-                for (var i = 0; i < table.length; i++) {
-                  tableCopy[i] = getTableRow(table, i);
-                }
-              } else {
-                for (var i = 0; i < table.length; i++) {
-                  tableCopy[i] = getTableColumn(table, i);
-                }
-              }
-              return tableCopy;
-            }
-
-            const tilesCopy = getRotatedTable(this.tiles, direction);
-            for (var i = 0; i < this.playFieldSize; i++) {
-              attract(tilesCopy[i]);
-            }
-            this.tiles = getUnrotatedTable(tilesCopy, direction);
-
+            this.tiles = Engine.execute(this.tiles, direction);
             this.refreshTilesNextPosition();
             this.buildFreeCells();
-            if (this.freeCells.length) {
-              this.addNewTile();
+            if (!Engine.gameOver) {
+              if (!Engine.emptyMove) {
+                this.addNewTile();
+              } else {
+                this.newTile = null;
+              }
             } else {
               this.gameOver = true;
             }
-            
           }
 
         }
@@ -247,7 +325,7 @@
         
         $(document).ready(function () {
           var $playfield = $('#playfield');
-          var mousedown = false;
+          var mouseBlocked = false;
 
           function getTileStyleClass({ value }) {
             return `thing t${value}`;
@@ -255,11 +333,11 @@
           function getCellStylePosition({ row, column }) {
             var top = row * 100;
             var left = column * 100;
-            return `top: ${top}px; left: ${left}px;`;
+            return `top: ${top}px; left: ${left}px; transition: top 1s, left 1s`;
           }
 
           function renderNewTile(tile) {
-            if (tile !== undefined) {
+            if (tile) {
               $('<div/>', {
                 id: tile.id,
                 class: getTileStyleClass(tile),
@@ -277,12 +355,14 @@
                     class: getTileStyleClass(tile),
                     style: getCellStylePosition(tile),
                   });
-
+                  if (tile.removedTileId) {
+                    $(`#${tile.removedTileId}`).remove();
+                    tile.removedTileId = null;
+                  }
                 }
               }
             }
           }
-
 
           function getDirection(event) {
             var shiftX = 0, shiftY = 0, direction;
@@ -296,20 +376,27 @@
           }
 
           $playfield.unbind('mousedown').mousedown(function (event) {
-              mousedown = true;
-              getDirection.mousedown = event;
+            getDirection.mousedown = event;
           });
           $playfield.unbind('mouseup').mouseup(function (event) {
-              mousedown = false;
-              let direction = getDirection(event);
-              console.log('UP: direction =', direction);
-              state.next(direction);
-              if (state.gameOver) {
-                return;
-              }
-              renderTileTransition(state);
-              renderNewTile(state.newTile);
-              console.log(state);
+            if (mouseBlocked) {
+              return;
+            }
+            let direction = getDirection(event);
+            state.next(direction);
+            if (state.gameOver) {
+              console.log('gameOver');
+              return;
+            }
+            mouseBlocked = true;
+            renderTileTransition(state);
+            setTimeout(
+              () => {
+                renderNewTile(state.newTile);
+                mouseBlocked = false;
+              },
+            1000);
+            console.log(state);
           });
 
           const state = new State(4);
@@ -337,7 +424,13 @@
     <div class="back" style="top: 100px; left: 300px;"></div>
     <div class="back" style="top: 200px; left: 300px;"></div>
     <div class="back" style="top: 300px; left: 300px;"></div>
-
+</div>
+<template id="modal">
+  <div id="modal__background"></div>
+  <div id="modal__content">
+    Игра закончена. <a onclick="state.newGame()">Еще?</a>
+  </div>
+</template>
 </div>
 </body>
 </html>
