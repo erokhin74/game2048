@@ -19,15 +19,32 @@
             -ms-user-drag: none;
             user-drag: none;
         }
-        #modal__background{
+        #modal{
           position: absolute;
           top: 100px;
-            left: 100px;
-            width: 400px;
-            height: 400px;
-          background-color: rgb(228, 204, 236);
+          left: 100px;
+          width: 400px;
+          height: 400px;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+        #modal__background{
+          z-index: 1;
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background-color: rgb(98, 46, 116);
           opacity: 0.5;
         }
+        #modal__content{
+          z-index: 99;
+        }
+        #modal__content > a {
+            outline: 3px solid red;
+          }
         #playfield{
             position: absolute;
             top: 100px;
@@ -88,16 +105,37 @@
             content: '64'
         }
         .thing.t128{
-            background: #0a034c;
+            background: #3d395f;
         }
         .thing.t128:after{
             content: '128'
         }
-        /* и так далее */
-
+        .thing.t256{
+            background: #595768;
+        }
+        .thing.t256:after{
+            content: '128'
+        }
+        .thing.t512{
+            background: #8b8b8f;
+        }
+        .thing.t512:after{
+            content: '128'
+        }
+        .thing.t1024{
+            background: #b0adc9;
+        }
+        .thing.t1024:after{
+            content: '128'
+        }
+        .thing.t2048{
+            background: #f8f7fa;
+        }
+        .thing.t2048:after{
+            content: '128'
+        }
     </style>
     <script>
-
         /*
          Пример игры: http://gabrielecirulli.github.io/2048/ только в нем ходы делаются с помощью клавиатуры
          Правила игры.
@@ -120,14 +158,16 @@
         Основной статический метод execute с входными параметрами:
           table - исходный двумерный массив плиток,
           direction - сторона поля, к которой будут перемещены плитки,
-        возвращает перемещенный двумерный массив.
+        возвращает двумерный массив плиток после перемещения.
         */
         class Engine {
+
 
           constructor(table, direction) {
             this.table = table;
             this.direction = direction;
           }
+
 
           static execute(table, direction) {
             Engine.emptyMove = true;
@@ -141,6 +181,7 @@
             }
             return engine.table;
           }
+
 
           _isGameOver() {
             const isThereMove = getSubset => {
@@ -157,9 +198,11 @@
             return !isThereMove(this._getTableRow) && !isThereMove(this._getTableColumn);
           }
 
+
           _getTableRow(table, n) {
             return table[n].slice();
           }
+
 
           _getTableColumn(table, n) {
             const column = [];
@@ -168,6 +211,7 @@
             }
             return column;
           }
+
 
           _attractRow(arr) {
             let vacantPos;
@@ -190,6 +234,7 @@
             }
           }
 
+
           _mergeDouble(arr) {
             const size = arr.length;
             for (let i = 1; i < size && arr[i] !== undefined; i++) {
@@ -204,6 +249,7 @@
             }
           }
 
+
           attractTable() {
             for (var i = 0; i < this.table.length; i++) {
               this._attractRow(this.table[i]);
@@ -211,6 +257,7 @@
             }
             return this;
           }
+
 
           getRotatedTable() {
             const tableCopy = [];
@@ -233,6 +280,7 @@
             return this;
           }
 
+
           getUnrotatedTable() {
             const tableCopy = [];
             if (this.direction === 'bottom' || this.direction === 'right') {
@@ -252,15 +300,24 @@
             this.table = tableCopy;
             return this;
           }
-
         }
+
+
+
+
 
         /*
         Класс управления игрой.
         */
         class State {
+
+
           constructor(playFieldSize) {
             this.playFieldSize = playFieldSize;
+            this.newGame();
+          }
+          
+          newGame() {
             this.gameOver = false;
             this.tiles = [];
             for (var i = 0; i < this.playFieldSize; i++) {
@@ -268,8 +325,9 @@
             }
             this.buildFreeCells();
             this.addNewTile();
+            console.log('New game...')
           }
-          
+
           buildFreeCells() {
             this.freeCells = [];
             for (var i = 0; i < this.playFieldSize; i++) {
@@ -284,6 +342,7 @@
             }
           }
 
+
           refreshTilesNextPosition() {
             for (var i = 0; i < this.playFieldSize; i++) {
               for (var j = 0; j < this.playFieldSize; j++) {
@@ -295,6 +354,7 @@
             }
           }
 
+
           addNewTile() {
             const randomIndex = Math.floor(Math.random() * this.freeCells.length);
             const cell = this.freeCells[randomIndex];
@@ -304,6 +364,7 @@
             this.tiles[cell.row][cell.column] = cell;
             this.newTile = cell;
           }
+
           
           next(direction) {
             this.tiles = Engine.execute(this.tiles, direction);
@@ -319,14 +380,17 @@
               this.gameOver = true;
             }
           }
-
         }
-
         
+
+        const state = new State(4);
+        renderNewTile(state.newTile);
+        console.log(state);
+
+
         $(document).ready(function () {
           var $playfield = $('#playfield');
           var mouseBlocked = false;
-
           function getTileStyleClass({ value }) {
             return `thing t${value}`;
           }
@@ -335,7 +399,6 @@
             var left = column * 100;
             return `top: ${top}px; left: ${left}px; transition: top 1s, left 1s`;
           }
-
           function renderNewTile(tile) {
             if (tile) {
               $('<div/>', {
@@ -363,7 +426,6 @@
               }
             }
           }
-
           function getDirection(event) {
             var shiftX = 0, shiftY = 0, direction;
             shiftX = event.pageX - getDirection.mousedown.pageX;
@@ -374,7 +436,6 @@
               return shiftY > 0 ? 'bottom' : 'top';
             }
           }
-
           $playfield.unbind('mousedown').mousedown(function (event) {
             getDirection.mousedown = event;
           });
@@ -398,12 +459,7 @@
             1000);
             console.log(state);
           });
-
-          const state = new State(4);
-          renderNewTile(state.newTile);
-          console.log(state);
         });
-
     </script>
 </head>
 <body>
@@ -425,12 +481,12 @@
     <div class="back" style="top: 200px; left: 300px;"></div>
     <div class="back" style="top: 300px; left: 300px;"></div>
 </div>
-<template id="modal">
+<div id="modal">
   <div id="modal__background"></div>
   <div id="modal__content">
     Игра закончена. <a onclick="state.newGame()">Еще?</a>
   </div>
-</template>
+</div>
 </div>
 </body>
 </html>
