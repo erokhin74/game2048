@@ -20,6 +20,7 @@
             user-drag: none;
         }
         #modal{
+          visibility: hidden;
           position: absolute;
           top: 100px;
           left: 100px;
@@ -29,6 +30,9 @@
           justify-content: center;
           align-items: center;
         }
+        #modal.show{
+          visibility: visible;
+        }
         #modal__background{
           z-index: 1;
           position: absolute;
@@ -36,14 +40,17 @@
           left: 0;
           width: 100%;
           height: 100%;
-          background-color: rgb(98, 46, 116);
+          background-color: rgb(68, 33, 80);
           opacity: 0.5;
         }
         #modal__content{
           z-index: 99;
+          font-size: 2em;
+          color: white;
         }
         #modal__content > a {
-            outline: 3px solid red;
+            color: blue;
+            cursor: pointer;
           }
         #playfield{
             position: absolute;
@@ -58,6 +65,7 @@
             width: 100px;
             height: 100px;
             background: gray;
+            outline: 1px solid black;
         }
         .thing{
             position: absolute;
@@ -153,22 +161,22 @@
          */
 
 
+
+
+        
         /*
-        Перемещение плиток к одной из сторон, указываемой параметром direction.
+        Вспомогательный класс, используемый только внутри класса State.
+        Описывает перемещение плиток к одной из сторон, указываемой параметром direction.
         Основной статический метод execute с входными параметрами:
           table - исходный двумерный массив плиток,
           direction - сторона поля, к которой будут перемещены плитки,
         возвращает двумерный массив плиток после перемещения.
         */
         class Engine {
-
-
           constructor(table, direction) {
             this.table = table;
             this.direction = direction;
           }
-
-
           static execute(table, direction) {
             Engine.emptyMove = true;
             const engine = new Engine(table, direction);
@@ -181,8 +189,6 @@
             }
             return engine.table;
           }
-
-
           _isGameOver() {
             const isThereMove = getSubset => {
               for (let i = 0; i < this.table.length; i++) {
@@ -197,13 +203,9 @@
             }
             return !isThereMove(this._getTableRow) && !isThereMove(this._getTableColumn);
           }
-
-
           _getTableRow(table, n) {
             return table[n].slice();
           }
-
-
           _getTableColumn(table, n) {
             const column = [];
             for (var i = 0; i < table.length; i++) {
@@ -211,8 +213,6 @@
             }
             return column;
           }
-
-
           _attractRow(arr) {
             let vacantPos;
             for (let i = 0; i < arr.length; i++) {
@@ -233,8 +233,6 @@
               }
             }
           }
-
-
           _mergeDouble(arr) {
             const size = arr.length;
             for (let i = 1; i < size && arr[i] !== undefined; i++) {
@@ -248,8 +246,6 @@
               }
             }
           }
-
-
           attractTable() {
             for (var i = 0; i < this.table.length; i++) {
               this._attractRow(this.table[i]);
@@ -257,8 +253,6 @@
             }
             return this;
           }
-
-
           getRotatedTable() {
             const tableCopy = [];
             if (this.direction === 'left' || this.direction === 'right') {
@@ -279,8 +273,6 @@
             this.table = tableCopy;
             return this;
           }
-
-
           getUnrotatedTable() {
             const tableCopy = [];
             if (this.direction === 'bottom' || this.direction === 'right') {
@@ -305,15 +297,17 @@
 
 
 
-
         /*
-        Класс управления игрой.
+        Класс State хранит состояние игры: положение плиток, свободные ячейки,
+        запускает ход с заданным направлением или новую игру.
+        Иницализируется двумя параметрами:
+          playFieldSize - размер поля,
+          timeout - анимационная пауза
         */
         class State {
-
-
-          constructor(playFieldSize) {
+          constructor(playFieldSize, timeout) {
             this.playFieldSize = playFieldSize;
+            this.timeout = timeout;
             this.newGame();
           }
           
@@ -325,9 +319,7 @@
             }
             this.buildFreeCells();
             this.addNewTile();
-            console.log('New game...')
           }
-
           buildFreeCells() {
             this.freeCells = [];
             for (var i = 0; i < this.playFieldSize; i++) {
@@ -341,8 +333,6 @@
               }
             }
           }
-
-
           refreshTilesNextPosition() {
             for (var i = 0; i < this.playFieldSize; i++) {
               for (var j = 0; j < this.playFieldSize; j++) {
@@ -353,8 +343,6 @@
               }
             }
           }
-
-
           addNewTile() {
             const randomIndex = Math.floor(Math.random() * this.freeCells.length);
             const cell = this.freeCells[randomIndex];
@@ -364,8 +352,6 @@
             this.tiles[cell.row][cell.column] = cell;
             this.newTile = cell;
           }
-
-          
           next(direction) {
             this.tiles = Engine.execute(this.tiles, direction);
             this.refreshTilesNextPosition();
@@ -381,42 +367,45 @@
             }
           }
         }
-        
-
-        const state = new State(4);
-        renderNewTile(state.newTile);
-        console.log(state);
 
 
-        $(document).ready(function () {
-          var $playfield = $('#playfield');
-          var mouseBlocked = false;
-          function getTileStyleClass({ value }) {
+
+        /*
+        Класс View отображает состояние игры state в браузере на игровом поле $field.
+        */
+        class View {
+          constructor($field, state) {
+            this.$field = $field;
+            this.state = state;
+          }
+          _getTileStyleClass({ value }) {
             return `thing t${value}`;
           }
-          function getCellStylePosition({ row, column }) {
+          _getCellStylePosition({ row, column }) {
             var top = row * 100;
             var left = column * 100;
-            return `top: ${top}px; left: ${left}px; transition: top 1s, left 1s`;
+            var timeoutSec = this.state.timeout / 1000;
+            return `top: ${top}px; left: ${left}px; transition: top ${timeoutSec}s, left ${timeoutSec}s`;
           }
-          function renderNewTile(tile) {
+          renderNewTile() {
+            const tile = this.state.newTile;
             if (tile) {
               $('<div/>', {
                 id: tile.id,
-                class: getTileStyleClass(tile),
-                style: getCellStylePosition(tile),
-              }).appendTo($playfield);
+                class: this._getTileStyleClass(tile),
+                style: this._getCellStylePosition(tile),
+              }).appendTo(this.$field);
             }
           }
-          
-          function renderTileTransition(state) {
+          renderTileTransition() {
+            var state = this.state;
             for (var i = 0; i < state.playFieldSize; i++) {
               for (var j = 0; j < state.playFieldSize; j++) {
                 const tile = state.tiles[i][j];
                 if (tile !== undefined) {
                   $(`#${tile.id}`).attr({
-                    class: getTileStyleClass(tile),
-                    style: getCellStylePosition(tile),
+                    class: this._getTileStyleClass(tile),
+                    style: this._getCellStylePosition(tile),
                   });
                   if (tile.removedTileId) {
                     $(`#${tile.removedTileId}`).remove();
@@ -426,6 +415,38 @@
               }
             }
           }
+          _clearField() {
+            var state = this.state;
+            for (var i = 0; i < state.playFieldSize; i++) {
+              for (var j = 0; j < state.playFieldSize; j++) {
+                const tile = state.tiles[i][j];
+                if (tile !== undefined) {
+                  $(`#${tile.id}`).remove();
+                }
+              }
+            }
+          }
+          newGame() {
+            this._clearField();
+            this.state.newGame();
+            this.renderNewTile();
+          }
+        }
+
+
+        /*
+        Основной код игры. Перехватываются движения мыши по игровому полю. определяется направление хода,
+        запускается пересчет состояния state и перерисовка плиток view.
+        */
+        $(document).ready(function () {
+          const $playfield = $('#playfield');
+          const state = new State(4, 500);
+          const view = new View($playfield, state);
+          view.renderNewTile();
+          const $modal = $('#modal');
+          const $start = $('#modal__content > a');
+          var mouseBlocked = false;
+
           function getDirection(event) {
             var shiftX = 0, shiftY = 0, direction;
             shiftX = event.pageX - getDirection.mousedown.pageX;
@@ -436,28 +457,35 @@
               return shiftY > 0 ? 'bottom' : 'top';
             }
           }
+          
           $playfield.unbind('mousedown').mousedown(function (event) {
             getDirection.mousedown = event;
           });
+          
           $playfield.unbind('mouseup').mouseup(function (event) {
             if (mouseBlocked) {
               return;
             }
             let direction = getDirection(event);
+            
             state.next(direction);
             if (state.gameOver) {
-              console.log('gameOver');
+              $modal.addClass('show');
               return;
             }
             mouseBlocked = true;
-            renderTileTransition(state);
+            view.renderTileTransition();
             setTimeout(
               () => {
-                renderNewTile(state.newTile);
+                view.renderNewTile();
                 mouseBlocked = false;
               },
-            1000);
-            console.log(state);
+            state.timeout);
+          });
+          
+          $start.click(() => {
+            view.newGame();
+            $modal.removeClass('show');
           });
         });
     </script>
@@ -484,7 +512,9 @@
 <div id="modal">
   <div id="modal__background"></div>
   <div id="modal__content">
-    Игра закончена. <a onclick="state.newGame()">Еще?</a>
+    Игра закончена.
+    <br/>
+    <a>Начать новую?</a>
   </div>
 </div>
 </div>
